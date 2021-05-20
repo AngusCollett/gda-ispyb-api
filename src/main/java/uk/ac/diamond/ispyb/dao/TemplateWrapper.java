@@ -11,13 +11,12 @@
  *******************************************************************************/
 package uk.ac.diamond.ispyb.dao;
 
-import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.jdbc.core.ResultSetExtractor;
-import org.springframework.jdbc.core.SqlReturnResultSet;
+import org.springframework.jdbc.core.*;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.simple.SimpleJdbcCall;
 
 import java.sql.SQLException;
+import java.sql.Types;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -72,6 +71,11 @@ public class TemplateWrapper {
 		return list.isEmpty() ? Optional.empty() : Optional.of(list.get(0));
 	}
 
+	<T> Optional<T> callIspybFunction(String function, Class<T> clazz, Map<String, Object> params) {
+		T result = executeFunction(function, clazz, params);
+		return (result == null) ? Optional.empty() : Optional.of(result);
+	}
+
 	<T> Optional<T> callIspybForBean(String procedure, Class<T> clazz, Map<String, Object> params) {
 		Map<String, Object> map = execute(procedure, params);
 		List<T> list = parser.parse(map, new MapToBeanFunction<T>(clazz));
@@ -90,6 +94,12 @@ public class TemplateWrapper {
 		return simpleJdbcCall.execute(in);
 	}
 
+	private <T> T executeFunction(String function, Class<T> clazz, Map<String, Object> params) {
+		SimpleJdbcCall simpleJdbcCall = createFunctionCall(function);
+		MapSqlParameterSource in = createInParameters(params);
+		return simpleJdbcCall.executeFunction(clazz, in);
+	}
+
 	private MapSqlParameterSource createInParameters(Map<String, Object> params) {
 		MapSqlParameterSource in = new MapSqlParameterSource();
 		if (params != null)
@@ -103,6 +113,13 @@ public class TemplateWrapper {
 		return new SimpleJdbcCall(template)
 			.withProcedureName(procedure)
 			.withCatalogName(schema);
+	}
+
+	SimpleJdbcCall createFunctionCall(String function) {
+		return new SimpleJdbcCall(template)
+				.withCatalogName(schema)
+				.withFunctionName(function)
+				.withoutProcedureColumnMetaDataAccess();
 	}
 
 	@SuppressWarnings("unchecked")
